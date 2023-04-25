@@ -5,10 +5,12 @@ open Dapper
 
 type LogFn = string * Map<string, obj> -> unit
 
-let query1<'a> (this:IDbConnection) trans timeout cancellationToken (logFunction:LogFn option) (query, pars) =
+let query1<'a> (this:IDbConnection) trans timeout cancellationToken (logFunction:LogFn option) (query, pars) = task {
     if logFunction.IsSome then (query, pars) |> logFunction.Value
-    CommandDefinition(query, pars, ?transaction = trans, ?commandTimeout = timeout, ?cancellationToken = cancellationToken)
-    |> this.QueryAsync<'a>
+    return
+        CommandDefinition(query, pars, ?transaction = trans, ?commandTimeout = timeout, ?cancellationToken = cancellationToken)
+        |> this.Query<'a>
+    }
 
 let query2<'a,'b> (this:IDbConnection) trans timeout cancellationToken (logFunction:LogFn option) (query, pars, splitOn) =
     if logFunction.IsSome then (query, pars) |> logFunction.Value
