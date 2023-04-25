@@ -283,3 +283,33 @@ type UpdateOutputTests () =
             Assert.IsTrue (fromDb |> Seq.head |> fun (x:Persons.View) -> x.DateOfBirth |> Option.isSome)
             Assert.AreEqual(2, fromDb |> Seq.head |> fun (x:Persons.View) -> x.Position)
         }
+
+    [<Test; Timeout(2000)>]
+    member _.``Update complex task``() =
+        task {
+            do! init.InitPersons()
+            let rs = Persons.View.generate 10
+            let! _ =
+                insert {
+                    into personsView
+                    values rs
+                } |> conn.InsertAsync
+            let! fromDb =
+                task {
+                    let updateItem (rs: Persons.View list) f i = task {
+                        let! x = f (rs |> Seq.find (fun p -> p.Position = i))
+                        return!
+                            update {
+                                for p in personsView do
+                                set x
+                                where (p.Position = i)
+                            } |> conn.UpdateOutputAsync<Persons.View, {| Id:Guid |}>
+                    }
+                    let! _ = updateItem rs (fun p -> task { return { p with LastName = "UPDATED3" }}) 3
+                    let! x = updateItem rs (fun p -> task { return { p with LastName = "UPDATED" }}) 2
+                    return x
+                }
+            let pos2Id = rs |> List.pick (fun p -> if p.Position = 2 then Some p.Id else None)
+
+            Assert.AreEqual(pos2Id, fromDb |> Seq.head |> fun (p:{| Id:Guid |}) -> p.Id)
+        }
